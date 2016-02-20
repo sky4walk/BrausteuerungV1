@@ -1,0 +1,25 @@
+Comag Home Control Switch Type:0
+A Ein: Code: 529976, period duration: 342us.
+A Aus: Code: 529980, period duration: 342us.
+B Ein: Code: 530948, period duration: 342us.
+B Aus: Code: 530952, period duration: 342us.
+C Ein: Code: 531272, period duration: 342us.
+B Aus: Code: 531276, period duration: 342us.
+D Ein: Code: 531380, period duration: 342us.
+D Aus: Code: 531384, period duration: 342us.
+
+
+HomeEasy
+Addr 156488 unit 1 on, period: 276us.
+Addr 156488 unit 1 off, period: 276us.
+Addr 156488 unit 2 on, period: 276us.
+Addr 156488 unit 2 off, period: 276us.
+Addr 156488 unit 3 on, period: 276us.
+Addr 156488 unit 3 off, period: 276us.
+Addr 156488 unit 4 on, period: 276us.
+Addr 156488 unit 4 off, period: 276us.
+Addr 156488 group on, period: 276us.
+Addr 156488 group off, period: 276us.
+
+
+Addr 1859584 period 263
