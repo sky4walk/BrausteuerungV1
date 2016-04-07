@@ -1,3 +1,6 @@
+// brausteuerung@AndreBetz.de
+// hier gilt die Bierlizenz
+
 // Knoepfe
 
 // fudge value is used to ensure that subtracted solids are a tad taller
