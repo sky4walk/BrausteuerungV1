@@ -18,15 +18,13 @@
 #define PIDOWINTERVAL       (1000 / (1 << (12 - TEMPRESOLUTION)))
 #define PIDWINDOWSIZE       (PIDOWINTERVAL * 6)
 #define PIDMINWINDOW        150 
-#define EEPROM_HEADER_DATA  051215
-#define EEPROM_HEADER_POS   0
-#define EEPROM_HEADER_SIZE  4
 #define MAXRAST             15
 #define PINHEATER           13  //D13
 #define PINTMPDS18B20       12  //D12
 #define PINBUZZER           11  //D11
 #define PINLCD              10
 #define PINKEY              0
+#define MAXBUTTONS          6
 #define btnNONE             0
 #define btnRIGHT            1
 #define btnUP               2
@@ -57,19 +55,20 @@ struct Rezept
   int SwitchBits;
   unsigned long SwitchOn;
   unsigned long SwitchOff;
+  int LastState;
   bool UseDefault;
 } myRezept;
 ///////////////////////////////////////////////////////////////////////////////
 // variablen
 ///////////////////////////////////////////////////////////////////////////////
-double pidOutput        = 0;
-double isTmp            = 25;
-double sollTmp          = 25;
-bool   btnPressed[3]    = {false,false,false};
+double pidOutput                 = 0;
+double isTmp                     = 25;
+double sollTmp                   = 25;
+bool   btnPressed[MAXBUTTONS]    = {false,false,false,false,false,false};
 ///////////////////////////////////////////////////////////////////////////////
 // classes
 ///////////////////////////////////////////////////////////////////////////////
-//LiquidCrystal     lcd(8, 9, 4, 5, 6, 7);
+LiquidCrystal     lcd(8, 9, 4, 5, 6, 7);
 OneWire           oneWire(PINTMPDS18B20);
 DallasTemperature sensors(&oneWire);
 DeviceAddress     tempDeviceAddress;
@@ -99,9 +98,60 @@ void LoadValues()
     myRezept.SwitchPulseLength = 315;
     myRezept.SwitchBits        = 24;
     myRezept.SwitchRepeat      = 15;
+    myRezept.LastState         = 0;
     myRezept.UseDefault        = true;
     store.save(0, sizeof(Rezept), (char*)&myRezept);
   }
+}
+///////////////////////////////////////////////////////////////////////////////
+// readKeyPad
+///////////////////////////////////////////////////////////////////////////////
+void setButton(int btnNr) 
+{
+  if ( MAXBUTTONS > btnNr ) 
+    if ( false == btnPressed[btnNr] )
+      btnPressed[btnNr] = true;
+}
+void resetButton(int btnNr)
+{
+  if ( MAXBUTTONS > btnNr )
+    btnPressed[btnNr] = false;
+}
+int Keypad()
+{
+  int x;
+  int y;
+  int val = 0;
+  int val_old = 0;
+
+  do
+  {
+    val_old = val;
+    x = analogRead(PINKEY);
+    if      (x <  60) val = btnRIGHT;
+    else if (x < 200) val = btnUP;
+    else if (x < 400) val = btnDOWN;
+    else if (x < 600) val = btnLEFT;
+    else if (x < 800) val = btnSELECT;
+    else              val = 0;
+    delay(10);
+  }
+  while ( val != val_old );
+
+  setButton(val);
+  
+  return val;
+}
+///////////////////////////////////////////////////////////////////////////////
+// print Logo
+///////////////////////////////////////////////////////////////////////////////
+void printLogo()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Brauverein.org");
+  delay(2000);
+  lcd.clear();
 }
 ///////////////////////////////////////////////////////////////////////////////
 // setup
@@ -109,12 +159,12 @@ void LoadValues()
 void setup()
 {
   Serial.begin(115200);
-
+  lcd.begin(16, 2);
+  
   // load and set values
   LoadValues();
     
   pinMode(PINTMPDS18B20,  INPUT);
-  //pinMode(PINHEATER,      OUTPUT);
   pinMode(PINBUZZER,      OUTPUT);
   pinMode(PINLCD,         OUTPUT);
   analogWrite (PINBUZZER, 0);
@@ -132,12 +182,12 @@ void setup()
   mySwitch.setPulseLength(myRezept.SwitchPulseLength);
   mySwitch.setRepeatTransmit(myRezept.SwitchRepeat); 
   
-  //lcd.begin(16, 2);
+  digitalWrite(PINLCD, HIGH);
 
-  timerTempMeasure.setTime(2000);
-//  timerTempMeasure.setTime(myRezept.PidOWinterval);
+  timerTempMeasure.setTime(myRezept.PidOWinterval);
   timerPidCompute.setTime(myRezept.PidWindowSize); 
-  delay(1000);
+  delay(500);
+  printLogo();
 }
 ///////////////////////////////////////////////////////////////////////////////
 // loop
@@ -145,8 +195,10 @@ void setup()
 bool switchon = false;
 void loop ()
 {
+  int keyState = Keypad();
+
+  // temperatur meassure
   timerTempMeasure.start();
-  timerPidCompute.start();
   if ( timerTempMeasure.timeOver() )
   {
     timerTempMeasure.restart();
@@ -161,27 +213,28 @@ void loop ()
     {
       CONSOLELN(isTmp);
     }   
+    
+  
+  }
+
+  // PID compute 
+  timerPidCompute.start();
+  if ( timerPidCompute.timeOver() )
+  {
+    timerPidCompute.restart();
+
     if ( switchon )
     {
-      CONSOLELN("on");
-        CONSOLELN(myRezept.SwitchProtocol);
-  CONSOLELN(myRezept.SwitchPulseLength);
-  CONSOLELN(myRezept.SwitchRepeat);
-
-      CONSOLELN(myRezept.SwitchOn);
-      CONSOLELN(myRezept.SwitchBits);
-            mySwitch.send(myRezept.SwitchOn,myRezept.SwitchBits);
-          switchon = false;
+        CONSOLELN("On");
+        mySwitch.send(myRezept.SwitchOn,myRezept.SwitchBits);
+        switchon = false;
     }
     else
     {
-      CONSOLELN("off");
-      CONSOLELN(myRezept.SwitchOff);
-      CONSOLELN(myRezept.SwitchBits);
-          mySwitch.send(myRezept.SwitchOff,myRezept.SwitchBits);
-          switchon = true;
+        CONSOLELN("Off");
+        mySwitch.send(myRezept.SwitchOff,myRezept.SwitchBits);
+        switchon = true;
     } 
-  
   }
 }
 ///////////////////////////////////////////////////////////////////////////////
