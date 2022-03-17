@@ -12,7 +12,11 @@
 class WaitTime
 {
   public:
-    WaitTime(unsigned long interval)
+    WaitTime()
+    {
+      setTime(0);
+    }
+    void setTime(unsigned long interval)
     {
       mWaitTime = interval;
       init();
