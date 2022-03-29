@@ -56,7 +56,8 @@
 #define MENU_SETUP_RAST_ACTIVE        18
 #define MENU_SETUP_RAST_WAIT          19
 #define MENU_SETUP_RAST_ALARM         20
-#define MENU_BREW                     30
+#define MENU_BREW_RAST_NR             30
+#define MENU_BREW_RAST_START          31
 ///////////////////////////////////////////////////////////////////////////////
 // data structure
 ///////////////////////////////////////////////////////////////////////////////
@@ -109,6 +110,7 @@ PID myPID(&isTmp, &pidOutput, &sollTmp, myRezept.pidKp,myRezept.pidKi,myRezept.p
 WaitTime          timerTempMeasure;
 WaitTime          timerPidCompute;
 WaitTime          timerSendHeatState;
+WaitTime          timerBrewTimer;
 StorageEEProm     store;
 ///////////////////////////////////////////////////////////////////////////////
 // setDefaultValues
@@ -231,7 +233,6 @@ bool SubStateChange(int maxStates)
       CONSOLE(F("O"));
       getOK = true;
     }
-    CONSOLELN(subMenuState);
     return getOK;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -292,7 +293,7 @@ void menu()
         switch ( subMenuState )
         {
           case 0:
-            nextState(MENU_BREW);
+            nextState(MENU_BREW_RAST_NR);
             break;        
           case 1:
             nextState(MENU_SETUP_PIDKP);
@@ -326,7 +327,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.pidKp -= 0.01;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_PIDKD);
+        CONSOLELN(myRezept.pidKp );
+      }
       break;
     }
     case MENU_SETUP_PIDKD:
@@ -340,7 +344,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.pidKi -= 0.01;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_PIDKI);
+        CONSOLELN(myRezept.pidKi );
+      }
       break;
     }
     case MENU_SETUP_PIDKI:
@@ -354,7 +361,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.pidKd -= 0.01;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_PidOWinterval);
+        CONSOLELN(myRezept.pidKd );
+      }
       break;
     }
     case MENU_SETUP_PidOWinterval:
@@ -368,7 +378,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.PidOWinterval--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_PidWindowSize);
+        CONSOLELN(myRezept.PidOWinterval );
+      }
       break;
     }
     case MENU_SETUP_PidWindowSize:
@@ -382,7 +395,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.PidWindowSize--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_PidMinWindow);
+        CONSOLELN(myRezept.PidWindowSize );
+      }
       break;
     }
     case MENU_SETUP_PidMinWindow:
@@ -396,7 +412,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.PidMinWindow--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_SwitchProtocol);
+        CONSOLELN(myRezept.PidMinWindow );
+      }
       break;
     }
     case MENU_SETUP_SwitchProtocol:
@@ -410,7 +429,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchProtocol--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_SwitchPulseLength);
+        CONSOLELN(myRezept.SwitchProtocol );
+      }
       break;
     }
     case MENU_SETUP_SwitchPulseLength:
@@ -424,7 +446,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchPulseLength--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_SwitchRepeat);
+        CONSOLELN(myRezept.SwitchPulseLength );
+      }
       break;
     }
     case MENU_SETUP_SwitchRepeat:
@@ -438,7 +463,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchRepeat--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
         nextState(MENU_SETUP_SwitchBits);
+        CONSOLELN(myRezept.SwitchRepeat );
+      }
       break;
     }
     case MENU_SETUP_SwitchBits:
@@ -452,7 +480,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchBits--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN(myRezept.SwitchBits );
         nextState(MENU_SETUP_SwitchOn);
+      }
       break;
     }
     case MENU_SETUP_SwitchOn:
@@ -466,7 +497,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchOn--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN(myRezept.SwitchOn );
         nextState(MENU_SETUP_SwitchOff);
+      }
       break;
     }
     case MENU_SETUP_SwitchOff:
@@ -480,7 +514,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.SwitchOff--;
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN(myRezept.SwitchOff );
         nextState(MENU_SETUP_RAST_MENU);
+      }
       break;
     }
     case MENU_SETUP_RAST_MENU:
@@ -494,6 +531,7 @@ void menu()
             break;        
           case 1:
             store.save(0, sizeof(Rezept), (char*)&myRezept);
+            CONSOLELN(F("SAVEVAL"));
             nextState(MENU_START);
             break;        
         }
@@ -524,7 +562,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.actRast = menuInputVal(myRezept.actRast-1,0,MAXRAST);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN( myRezept.actRast );
         nextState(MENU_SETUP_RAST_TEMP);
+      }
       break;      
     }
     case MENU_SETUP_RAST_TEMP:
@@ -537,7 +578,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.rasten[rastNr].temp = menuInputVal(myRezept.rasten[rastNr].temp-1,0,0);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN(myRezept.rasten[rastNr].temp );
         nextState(MENU_SETUP_RAST_TIME);
+      }
       break;
     }
     case MENU_SETUP_RAST_TIME:
@@ -550,7 +594,10 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.rasten[rastNr].time = menuInputVal(myRezept.rasten[rastNr].time-1,0,0);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        CONSOLELN(myRezept.rasten[rastNr].time );
         nextState(MENU_SETUP_RAST_ACTIVE);
+      }
       break;
     }
     case MENU_SETUP_RAST_ACTIVE:
@@ -562,7 +609,13 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.rasten[rastNr].active = menuInputValBool(myRezept.rasten[rastNr].active);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        if ( myRezept.rasten[rastNr].active )
+          CONSOLELN(F("On"));
+        else
+          CONSOLELN(F("Of"));
         nextState(MENU_SETUP_RAST_WAIT);
+      }
       break;
     }
     case MENU_SETUP_RAST_WAIT:
@@ -574,7 +627,13 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.rasten[rastNr].wait = menuInputValBool(myRezept.rasten[rastNr].wait);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        if ( myRezept.rasten[rastNr].wait )
+          CONSOLELN(F("On"));
+        else
+          CONSOLELN(F("Of"));
         nextState(MENU_SETUP_RAST_ALARM);
+      }
       break;
     }
     case MENU_SETUP_RAST_ALARM:
@@ -586,8 +645,38 @@ void menu()
       else if ( isButtonPressed ( btnDOWN ) )
         myRezept.rasten[rastNr].alarm = menuInputValBool(myRezept.rasten[rastNr].alarm);
       else if ( isButtonPressed ( btnLEFT ) )
+      {
+        if ( myRezept.rasten[rastNr].alarm )
+          CONSOLELN(F("On"));
+        else
+          CONSOLELN(F("Of"));
         nextState(MENU_SETUP_RAST_MENU);
+      }
       break;
+    }
+    case MENU_BREW_RAST_NR:
+    {
+      lcd.print(F("RastNr"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.actRast);      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.actRast = menuInputVal(myRezept.actRast+1,0,MAXRAST);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.actRast = menuInputVal(myRezept.actRast-1,0,MAXRAST);
+      else if ( isButtonPressed ( btnLEFT ) )
+      {
+        timerBrewTimer.setTime(myRezept.rasten[rastNr].time);
+        nextState(MENU_BREW_RAST_START);
+      }
+      break;      
+    }
+    case MENU_BREW_RAST_START:
+    {      
+      if ( isButtonPressed ( btnUP ) ){}
+      else if ( isButtonPressed ( btnDOWN ) ){}
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_START);
+      break;      
     }
   }
 }
@@ -657,12 +746,38 @@ void loop ()
     }         
   }
 
-  // PID compute 
-  timerPidCompute.start();
-  if ( timerPidCompute.timeOver() )
+  // wenn brausteuerung gestartet ist
+  if ( MENU_BREW_RAST_START == actMenuState )
   {
-    timerPidCompute.restart();
-  }
+    lcd.print(F("S:"));
+    lcd.print(myRezept.actRast);
+    lcd.print(F(" H:"));
+    heatState ? lcd.print(F("1")) : lcd.print(F("0"));
+    lcd.setCursor(0, 1);
+    lcd.print(F("iT:"));
+    lcd.print(isTmp);
+    lcd.print(F(" sT:"));
+    lcd.print(myRezept.rasten[myRezept.actRast].temp);
+
+    CONSOLE(F("S:"));
+    CONSOLE(myRezept.actRast);
+    CONSOLE(F(" H:"));
+    if ( heatState ) 
+      CONSOLE(F("1")); 
+    else
+      CONSOLE(F("0"));
+    CONSOLE(F("iT:"));
+    CONSOLE(isTmp);
+    CONSOLE(F(" sT:"));
+    CONSOLELN(myRezept.rasten[myRezept.actRast].temp);
+    
+    // PID compute 
+    timerPidCompute.start();
+    if ( timerPidCompute.timeOver() )
+    {
+      timerPidCompute.restart();
+    }
+  }  
 
   // always send state
   timerSendHeatState.start();
