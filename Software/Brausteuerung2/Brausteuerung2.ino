@@ -18,7 +18,7 @@
 #define PIDOWINTERVAL       (1000 / (1 << (12 - TEMPRESOLUTION)))
 #define PIDWINDOWSIZE       (PIDOWINTERVAL * 6)
 #define PIDMINWINDOW        150 
-#define MAXRAST             15
+#define MAXRAST             16
 #define PINHEATER           13  //D13
 #define PINTMPDS18B20       12  //D12
 #define PINBUZZER           11  //D11
@@ -32,6 +32,31 @@
 #define btnLEFT             4
 #define btnSELECT           5
 #define MINDIFF             0.5
+///////////////////////////////////////////////////////////////////////////////
+// states
+///////////////////////////////////////////////////////////////////////////////
+#define MENU_START                    0
+#define MENU_SETUP_PIDKP              1
+#define MENU_SETUP_PIDKI              2
+#define MENU_SETUP_PIDKD              3
+#define MENU_SETUP_PidOWinterval      4
+#define MENU_SETUP_PidWindowSize      5
+#define MENU_SETUP_PidMinWindow       6
+#define MENU_SETUP_SwitchProtocol     7
+#define MENU_SETUP_SwitchPulseLength  8
+#define MENU_SETUP_SwitchRepeat       9
+#define MENU_SETUP_SwitchBits         10
+#define MENU_SETUP_SwitchOn           11
+#define MENU_SETUP_SwitchOff          12
+#define MENU_SETUP_BREW_NR            13
+#define MENU_SETUP_RAST_MENU          14
+#define MENU_SETUP_RAST_NR            15
+#define MENU_SETUP_RAST_TIME          16
+#define MENU_SETUP_RAST_TEMP          17
+#define MENU_SETUP_RAST_ACTIVE        18
+#define MENU_SETUP_RAST_WAIT          19
+#define MENU_SETUP_RAST_ALARM         20
+#define MENU_BREW                     30
 ///////////////////////////////////////////////////////////////////////////////
 // data structure
 ///////////////////////////////////////////////////////////////////////////////
@@ -97,7 +122,7 @@ void LoadValues()
   {
     // only go here after first installation
     memset((char*)&myRezept, 0, sizeof(Rezept));
-    myRezept.pidKp             = 0.0f;
+    myRezept.pidKp             = 5000.0f;
     myRezept.pidKi             = 0.0f;
     myRezept.pidKd             = 0.0f;
     myRezept.PidOWinterval     = PIDOWINTERVAL;
@@ -181,18 +206,17 @@ void printLogo()
 ///////////////////////////////////////////////////////////////////////////////
 bool SubStateChange(int maxStates)
 {
+    bool getOK = false;
     if ( isButtonPressed (btnUP) ) 
     {
-      CONSOLE(F("Up"));
-      CONSOLELN(subMenuState);
+      CONSOLE(F("U"));
       subMenuState++;
       if ( subMenuState == maxStates )
         subMenuState = 0;
     }
     else if ( isButtonPressed (btnDOWN) ) 
     { 
-      CONSOLE(F("Down"));
-      CONSOLELN(subMenuState);
+      CONSOLE(F("D"));
       if ( 0 == subMenuState )
       {
         subMenuState = maxStates-1;
@@ -204,9 +228,53 @@ bool SubStateChange(int maxStates)
     }
     else if ( isButtonPressed (btnLEFT) ) 
     { 
-      return true;
+      CONSOLE(F("O"));
+      getOK = true;
     }
-    return false;
+    CONSOLELN(subMenuState);
+    return getOK;
+}
+///////////////////////////////////////////////////////////////////////////////
+// next State
+///////////////////////////////////////////////////////////////////////////////
+void nextState(int nxtSt)
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  actMenuState = nxtSt;
+  subMenuState = 0;
+}
+///////////////////////////////////////////////////////////////////////////////
+// menuInputVal
+///////////////////////////////////////////////////////////////////////////////
+long menuInputVal(long val, long min, long max)
+{
+  lcd.setCursor(0, 1);
+  lcd.print(F("          "));
+  if ( min != max ) 
+  {
+    if ( max <= val )
+      return min;
+    else if ( val < min )
+      return max-1;
+  }
+  return val;
+}
+///////////////////////////////////////////////////////////////////////////////
+// menuInputValBool
+///////////////////////////////////////////////////////////////////////////////
+void printBool(bool val)
+{
+  lcd.setCursor(0, 1);
+  if ( val )
+      lcd.print(F("Y"));
+  else
+      lcd.print(F("N"));  
+}
+bool menuInputValBool(bool val)
+{
+  val = ( val ? false : true );
+  return val;
 }
 ///////////////////////////////////////////////////////////////////////////////
 // menu
@@ -214,30 +282,311 @@ bool SubStateChange(int maxStates)
 void menu()
 {
   lcd.setCursor(0, 0);
+  int rastNr = myRezept.actRast;
   switch(actMenuState)
   {
-    case 0:
+    case MENU_START:
     {
       if ( true == SubStateChange(2) )
-      {        
-        if ( 0 == subMenuState )
-          actMenuState = 1;
-        else 
-          actMenuState = 2;
-        CONSOLE(F("S"));
-        CONSOLELN(actMenuState);
-      }
-      lcd.setCursor(0, 0);
-      lcd.print(F("Menu"));
-      lcd.setCursor(0, 1);
-      if ( 0 == subMenuState )
       {
-        lcd.print(F("Brew"));
-      } 
+        switch ( subMenuState )
+        {
+          case 0:
+            nextState(MENU_BREW);
+            break;        
+          case 1:
+            nextState(MENU_SETUP_PIDKP);
+            break;        
+        }
+      }
       else
       {
-        lcd.print(F("Set "));
+        lcd.print(F("Menu"));
+        lcd.setCursor(0, 1);
+        switch ( subMenuState )
+        {
+          case 0: 
+            lcd.print(F("Brew"));
+            break;
+          case 1: 
+            lcd.print(F("Set "));
+            break;
+        }
       }
+      break;
+    }
+    case MENU_SETUP_PIDKP:
+    {
+      lcd.print(F("PidKP"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.pidKp,2);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.pidKp += 0.01;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.pidKp -= 0.01;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_PIDKD);
+      break;
+    }
+    case MENU_SETUP_PIDKD:
+    {
+      lcd.print(F("PidKI"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.pidKi,2);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.pidKi += 0.01;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.pidKi -= 0.01;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_PIDKI);
+      break;
+    }
+    case MENU_SETUP_PIDKI:
+    {
+      lcd.print(F("PidKD"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.pidKd,2);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.pidKd += 0.01;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.pidKd -= 0.01;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_PidOWinterval);
+      break;
+    }
+    case MENU_SETUP_PidOWinterval:
+    {
+      lcd.print(F("PidOWInt"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.PidOWinterval);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.PidOWinterval++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.PidOWinterval--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_PidWindowSize);
+      break;
+    }
+    case MENU_SETUP_PidWindowSize:
+    {
+      lcd.print(F("PidWSz"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.PidWindowSize);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.PidWindowSize++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.PidWindowSize--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_PidMinWindow);
+      break;
+    }
+    case MENU_SETUP_PidMinWindow:
+    {
+      lcd.print(F("PidMinWnd"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.PidMinWindow);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.PidMinWindow++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.PidMinWindow--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchProtocol);
+      break;
+    }
+    case MENU_SETUP_SwitchProtocol:
+    {
+      lcd.print(F("SwProt"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchProtocol);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchProtocol++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchProtocol--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchPulseLength);
+      break;
+    }
+    case MENU_SETUP_SwitchPulseLength:
+    {
+      lcd.print(F("SwPL"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchPulseLength);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchPulseLength++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchPulseLength--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchRepeat);
+      break;
+    }
+    case MENU_SETUP_SwitchRepeat:
+    {
+      lcd.print(F("SwRpt"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchRepeat);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchRepeat++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchRepeat--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchBits);
+      break;
+    }
+    case MENU_SETUP_SwitchBits:
+    {
+      lcd.print(F("SwBits"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchBits);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchBits++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchBits--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchOn);
+      break;
+    }
+    case MENU_SETUP_SwitchOn:
+    {
+      lcd.print(F("SwOn"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchOn);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchOn++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchOn--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_SwitchOff);
+      break;
+    }
+    case MENU_SETUP_SwitchOff:
+    {
+      lcd.print(F("SwOff"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.SwitchOff);
+      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.SwitchOff++;
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.SwitchOff--;
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_MENU);
+      break;
+    }
+    case MENU_SETUP_RAST_MENU:
+    {
+      if ( true == SubStateChange(2) )
+      {
+        switch ( subMenuState )
+        {
+          case 0:
+            nextState(MENU_SETUP_RAST_NR);
+            break;        
+          case 1:
+            store.save(0, sizeof(Rezept), (char*)&myRezept);
+            nextState(MENU_START);
+            break;        
+        }
+      }
+      else
+      {
+        lcd.print(F("RastMenu"));
+        lcd.setCursor(0, 1);
+        switch ( subMenuState )
+        {
+          case 0: 
+            lcd.print(F("Rast"));
+            break;
+          case 1: 
+            lcd.print(F("Menu"));
+            break;
+        }
+      }
+      break;
+    }
+    case MENU_SETUP_RAST_NR:
+    {
+      lcd.print(F("RastNr"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.actRast);      
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.actRast = menuInputVal(myRezept.actRast+1,0,MAXRAST);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.actRast = menuInputVal(myRezept.actRast-1,0,MAXRAST);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_TEMP);
+      break;      
+    }
+    case MENU_SETUP_RAST_TEMP:
+    {
+      lcd.print(F("Temp[C] "));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.rasten[rastNr].temp);
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.rasten[rastNr].temp = menuInputVal(myRezept.rasten[rastNr].temp+1,0,0);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.rasten[rastNr].temp = menuInputVal(myRezept.rasten[rastNr].temp-1,0,0);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_TIME);
+      break;
+    }
+    case MENU_SETUP_RAST_TIME:
+    {
+      lcd.print(F("Time[Min]"));
+      lcd.setCursor(0, 1);
+      lcd.print(myRezept.rasten[rastNr].time);
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.rasten[rastNr].time = menuInputVal(myRezept.rasten[rastNr].time+1,0,0);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.rasten[rastNr].time = menuInputVal(myRezept.rasten[rastNr].time-1,0,0);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_ACTIVE);
+      break;
+    }
+    case MENU_SETUP_RAST_ACTIVE:
+    {
+      lcd.print(F("Active  "));
+      printBool( myRezept.rasten[rastNr].active );
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.rasten[rastNr].active = menuInputValBool(myRezept.rasten[rastNr].active);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.rasten[rastNr].active = menuInputValBool(myRezept.rasten[rastNr].active);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_WAIT);
+      break;
+    }
+    case MENU_SETUP_RAST_WAIT:
+    {
+      lcd.print(F("Wait    "));
+      printBool( myRezept.rasten[rastNr].wait );
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.rasten[rastNr].wait = menuInputValBool(myRezept.rasten[rastNr].wait);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.rasten[rastNr].wait = menuInputValBool(myRezept.rasten[rastNr].wait);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_ALARM);
+      break;
+    }
+    case MENU_SETUP_RAST_ALARM:
+    {
+      lcd.print(F("Alarm   "));
+      printBool( myRezept.rasten[rastNr].alarm );
+      if ( isButtonPressed ( btnUP ) )
+        myRezept.rasten[rastNr].alarm = menuInputValBool(myRezept.rasten[rastNr].alarm);
+      else if ( isButtonPressed ( btnDOWN ) )
+        myRezept.rasten[rastNr].alarm = menuInputValBool(myRezept.rasten[rastNr].alarm);
+      else if ( isButtonPressed ( btnLEFT ) )
+        nextState(MENU_SETUP_RAST_MENU);
       break;
     }
   }
