@@ -32,6 +32,7 @@
 #define btnLEFT             4
 #define btnSELECT           5
 #define MINDIFF             0.5
+#define MIL2MIN             60 * 1000
 ///////////////////////////////////////////////////////////////////////////////
 // states
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,6 +59,10 @@
 #define MENU_SETUP_RAST_ALARM         20
 #define MENU_BREW_RAST_NR             30
 #define MENU_BREW_RAST_START          31
+#define BREW_STATE_HEAT_UP            0
+#define BREW_STATE_HEAT_TIMER         1
+#define BREW_STATE_TIMER_FIN          2
+#define BREW_STATE_NEXT_STATE         3
 ///////////////////////////////////////////////////////////////////////////////
 // data structure
 ///////////////////////////////////////////////////////////////////////////////
@@ -86,18 +91,26 @@ struct Rezept
   unsigned long SwitchOff;
   int actRast;
   bool started;
+  bool heatState;
+  bool tempReached;
   bool UseDefault;
 } myRezept;
 ///////////////////////////////////////////////////////////////////////////////
 // variablen
 ///////////////////////////////////////////////////////////////////////////////
 double pidOutput                 = 0;
-double isTmp                     = 25;
+double actTmp                    = 25;
+double readTmp                   = 25;
 double sollTmp                   = 25;
+double minDiffC                  = 0.2;
+unsigned long relaisOnStartTime  = 0;
 bool   btnPressed[MAXBUTTONS]    = {false,false,false,false,false,false};
-bool   heatState                 = false;
 int    actMenuState              = 0;
 int    subMenuState              = 0;
+int    actBrewStat               = 0;
+bool   heatStateChanged          = false;
+bool   buzzerActive              = false;
+char   printBuf[16];
 ///////////////////////////////////////////////////////////////////////////////
 // classes
 ///////////////////////////////////////////////////////////////////////////////
@@ -106,7 +119,7 @@ OneWire           oneWire(PINTMPDS18B20);
 DallasTemperature sensors(&oneWire);
 DeviceAddress     tempDeviceAddress;
 RCSwitch          mySwitch = RCSwitch();
-PID myPID(&isTmp, &pidOutput, &sollTmp, myRezept.pidKp,myRezept.pidKi,myRezept.pidKd, DIRECT);
+PID myPID(&actTmp, &pidOutput, &sollTmp, myRezept.pidKp,myRezept.pidKi,myRezept.pidKd, DIRECT);
 WaitTime          timerTempMeasure;
 WaitTime          timerPidCompute;
 WaitTime          timerSendHeatState;
@@ -138,9 +151,35 @@ void LoadValues()
     myRezept.SwitchRepeat      = 15;
     myRezept.actRast           = 0;
     myRezept.started           = false;
+    myRezept.heatState         = false;
     myRezept.UseDefault        = true;
+
+    for ( int i = 0; i < MAXRAST; i++ )
+    {
+      myRezept.rasten[i].temp = 20;
+      myRezept.rasten[i].time = 2;
+    }
+      
     store.save(0, sizeof(Rezept), (char*)&myRezept);
   }
+}
+///////////////////////////////////////////////////////////////////////////////
+// resetPID
+///////////////////////////////////////////////////////////////////////////////
+void resetPID() {
+  myPID.SetMode(MANUAL);
+  pidOutput=0;
+  myPID.SetMode(AUTOMATIC);
+  CONSOLELN(F("PIDres"));
+}
+///////////////////////////////////////////////////////////////////////////////
+// setPID
+///////////////////////////////////////////////////////////////////////////////
+void setPID() {
+  myPID.SetOutputLimits(myRezept.PidMinWindow, myRezept.PidWindowSize);
+  myPID.SetTunings(myRezept.pidKp, myRezept.pidKi, myRezept.pidKd);
+  myPID.SetSampleTime(myRezept.PidOWinterval);
+  resetPID();
 }
 ///////////////////////////////////////////////////////////////////////////////
 // readKeyPad
@@ -244,6 +283,13 @@ void nextState(int nxtSt)
   lcd.setCursor(0, 0);
   actMenuState = nxtSt;
   subMenuState = 0;
+  relaisOnStartTime = 0;
+  myRezept.started = false;
+  myRezept.heatState = false;
+  buzzerActive = false;
+  BuzzerOnOff(buzzerActive);
+  actBrewStat = BREW_STATE_NEXT_STATE;
+  timerBrewTimer.init();
 }
 ///////////////////////////////////////////////////////////////////////////////
 // menuInputVal
@@ -531,6 +577,7 @@ void menu()
             break;        
           case 1:
             store.save(0, sizeof(Rezept), (char*)&myRezept);
+            setPID();
             CONSOLELN(F("SAVEVAL"));
             nextState(MENU_START);
             break;        
@@ -665,13 +712,17 @@ void menu()
         myRezept.actRast = menuInputVal(myRezept.actRast-1,0,MAXRAST);
       else if ( isButtonPressed ( btnLEFT ) )
       {
-        timerBrewTimer.setTime(myRezept.rasten[rastNr].time);
         nextState(MENU_BREW_RAST_START);
+        timerBrewTimer.setTime(myRezept.rasten[rastNr].time);
+        sollTmp = myRezept.rasten[rastNr].temp;
+        myRezept.started = true;
+        actBrewStat = BREW_STATE_NEXT_STATE;
+        resetPID();
       }
       break;      
     }
     case MENU_BREW_RAST_START:
-    {      
+    {            
       if ( isButtonPressed ( btnUP ) ){}
       else if ( isButtonPressed ( btnDOWN ) ){}
       else if ( isButtonPressed ( btnLEFT ) )
@@ -679,6 +730,45 @@ void menu()
       break;      
     }
   }
+} 
+///////////////////////////////////////////////////////////////////////////////
+// BuzzerOnOff
+///////////////////////////////////////////////////////////////////////////////
+void BuzzerOnOff(boolean onOff)
+{
+  if ( true == onOff )
+  {
+    analogWrite (PINBUZZER, 180);
+  }
+  else
+  {
+    analogWrite (PINBUZZER, 0);
+  }
+}
+///////////////////////////////////////////////////////////////////////////////
+// Relais
+///////////////////////////////////////////////////////////////////////////////
+void Relais(bool onOff)
+{
+    if ( onOff )
+    {
+        CONSOLELN("On");
+        mySwitch.send(myRezept.SwitchOn,myRezept.SwitchBits);
+    }
+    else
+    {
+        CONSOLELN("Off");
+        mySwitch.send(myRezept.SwitchOff,myRezept.SwitchBits);
+    } 
+}
+///////////////////////////////////////////////////////////////////////////////
+// Relais
+///////////////////////////////////////////////////////////////////////////////
+void changeHeatState(bool onOff)
+{
+    if ( onOff != myRezept.heatState )
+      heatStateChanged = true;
+    myRezept.heatState = onOff;
 }
 ///////////////////////////////////////////////////////////////////////////////
 // setup
@@ -715,7 +805,8 @@ void setup()
   timerTempMeasure.setTime(myRezept.PidOWinterval);
   timerPidCompute.setTime(myRezept.PidWindowSize);
   timerSendHeatState.setTime(myRezept.PidWindowSize);
-  
+  //set PID values
+  setPID();
   // logo
   printLogo();
 }
@@ -733,67 +824,191 @@ void loop ()
   if ( timerTempMeasure.timeOver() )
   {
     timerTempMeasure.restart();
-    isTmp = sensors.getTempCByIndex(0);
+    readTmp = sensors.getTempCByIndex(0);
     sensors.requestTemperatures();
 
-    if ( DEVICE_DISCONNECTED_C == isTmp)
+    if ( DEVICE_DISCONNECTED_C == readTmp)
     {
       CONSOLELN("DISCONNECTED");
     } 
     else
     {
-      CONSOLELN(isTmp);
+      actTmp = readTmp;
+      CONSOLELN(actTmp);
     }         
   }
 
   // wenn brausteuerung gestartet ist
-  if ( MENU_BREW_RAST_START == actMenuState )
-  {
-    lcd.print(F("S:"));
-    lcd.print(myRezept.actRast);
-    lcd.print(F(" H:"));
-    heatState ? lcd.print(F("1")) : lcd.print(F("0"));
-    lcd.setCursor(0, 1);
-    lcd.print(F("iT:"));
-    lcd.print(isTmp);
-    lcd.print(F(" sT:"));
-    lcd.print(myRezept.rasten[myRezept.actRast].temp);
+  if ( myRezept.started )
+  {   
+    // zustand suchen der aktiv ist
+    if ( BREW_STATE_NEXT_STATE == actBrewStat ) 
+    {
+      while ( ( myRezept.actRast < MAXRAST ) && 
+              ( false == myRezept.rasten[myRezept.actRast].active ) )  
+              {
+                myRezept.actRast++;
+              }
 
-    CONSOLE(F("S:"));
+      if ( MAXRAST == myRezept.actRast )
+      {
+        myRezept.actRast = 0;
+        relaisOnStartTime = 0;
+        nextState(MENU_START); 
+      } 
+      else
+      {
+         actBrewStat = BREW_STATE_HEAT_UP;
+      }
+    }
+    
+    // ziel temperatur ueberschritten
+    if ( BREW_STATE_HEAT_UP == actBrewStat )
+    {
+      if ( myRezept.rasten[myRezept.actRast].temp < actTmp )
+      {
+        actBrewStat = BREW_STATE_HEAT_TIMER;
+        timerBrewTimer.setTime( myRezept.rasten[myRezept.actRast].time * MIL2MIN );
+        timerBrewTimer.start();
+        CONSOLELN(F("TmpReached"));
+      }
+    } 
+
+    // zeitmessung bis ende der rast
+    if ( BREW_STATE_HEAT_TIMER == actBrewStat )
+    {
+      if ( timerBrewTimer.timeOver() ) 
+      {
+        CONSOLELN(F("TimeReached"));
+        actBrewStat = BREW_STATE_TIMER_FIN;
+        if ( myRezept.rasten[myRezept.actRast].alarm )
+        {
+          buzzerActive = true;
+          BuzzerOnOff(buzzerActive);
+        }
+      }
+    }
+    
+   // ende der rast erreicht
+   if ( BREW_STATE_TIMER_FIN == actBrewStat ) 
+   {
+      if ( buzzerActive )
+      {
+        if ( isButtonPressed ( btnDOWN ) )
+        {
+          buzzerActive = false;
+          BuzzerOnOff(buzzerActive);
+        }
+      }
+      if ( myRezept.rasten[myRezept.actRast].wait )
+      {
+        if ( isButtonPressed ( btnUP ) )
+        {
+          actBrewStat = BREW_STATE_NEXT_STATE;
+        }
+      }
+      else
+      {
+        actBrewStat = BREW_STATE_NEXT_STATE;
+      }
+    }
+
+    if ( myRezept.started ) 
+    {
+      // LCD Show
+      lcd.print(F("S:"));
+      lcd.print(myRezept.actRast);
+      lcd.print(F(" H:"));
+      myRezept.heatState ? lcd.print(F("1")) : lcd.print(F("0"));
+      if ( BREW_STATE_HEAT_TIMER == actBrewStat )
+      {
+        lcd.print(F(" R:"));
+        unsigned long sT = timerBrewTimer.getDuration() / 1000;
+        if ( sT > 119 )
+         sT = sT / 60;
+        sprintf (printBuf, "%03u", (int)sT);      
+        lcd.print( printBuf );
+      }
+      else if ( BREW_STATE_HEAT_UP == actBrewStat )
+      {
+        lcd.print(F(" T:"));  
+        lcd.print( myRezept.rasten[myRezept.actRast].time );
+      }
+      else if ( BREW_STATE_TIMER_FIN == actBrewStat )
+      {
+        lcd.print(F(" W:"));
+      }
+      lcd.setCursor(0, 1);
+      lcd.print(F("iT:"));
+      if ( DEVICE_DISCONNECTED_C == readTmp)
+        lcd.print(F("--"));
+      else
+        lcd.print(actTmp);
+      lcd.print(F(" sT:"));
+      lcd.print(myRezept.rasten[myRezept.actRast].temp);
+    }
+    // Debug show
+    if ( buzzerActive )
+      CONSOLE(F("A:"));          
+    else
+      CONSOLE(F("B:"));
+    CONSOLE(actBrewStat);
+    CONSOLE(F(" S:"));
     CONSOLE(myRezept.actRast);
     CONSOLE(F(" H:"));
-    if ( heatState ) 
+    if ( myRezept.heatState ) 
       CONSOLE(F("1")); 
     else
       CONSOLE(F("0"));
-    CONSOLE(F("iT:"));
-    CONSOLE(isTmp);
+    CONSOLE(F(" iT:"));
+    CONSOLE(actTmp);
     CONSOLE(F(" sT:"));
-    CONSOLELN(myRezept.rasten[myRezept.actRast].temp);
+    CONSOLE(myRezept.rasten[myRezept.actRast].temp);
+    if ( BREW_STATE_HEAT_TIMER == actBrewStat )
+    {
+      CONSOLE(F(" R:"));
+      CONSOLELN( timerBrewTimer.getDuration() / 1000 );
+    }
+    else if ( BREW_STATE_HEAT_UP == actBrewStat )
+    {
+      CONSOLE(F(" T:"));
+      CONSOLELN( myRezept.rasten[myRezept.actRast].time  );
+    }
+    else if ( BREW_STATE_TIMER_FIN == actBrewStat )
+    {
+      CONSOLELN(F(" W:"));
+    }
     
     // PID compute 
     timerPidCompute.start();
     if ( timerPidCompute.timeOver() )
     {
+      myPID.Compute(); 
+      relaisOnStartTime = millis();
       timerPidCompute.restart();
+      CONSOLE(F("PIDcomp:"));
+      CONSOLELN(pidOutput);
     }
   }  
 
+  // wie lange geheizt werden soll
+  if( ( pidOutput > myRezept.PidMinWindow ) && 
+      ( pidOutput > millis() - relaisOnStartTime ) )
+  {
+    changeHeatState(true);
+  }
+  else 
+  {
+    changeHeatState(false);
+  }
+  
   // always send state
   timerSendHeatState.start();
-  if ( timerSendHeatState.timeOver() )
+  if ( timerSendHeatState.timeOver() || heatStateChanged )
   {
     timerSendHeatState.restart();
-    if ( heatState )
-    {
-        CONSOLELN("On");
-        mySwitch.send(myRezept.SwitchOn,myRezept.SwitchBits);
-    }
-    else
-    {
-        CONSOLELN("Off");
-        mySwitch.send(myRezept.SwitchOff,myRezept.SwitchBits);
-    } 
+    heatStateChanged = false;
+    Relais( myRezept.heatState );
   }
 }
 ///////////////////////////////////////////////////////////////////////////////
