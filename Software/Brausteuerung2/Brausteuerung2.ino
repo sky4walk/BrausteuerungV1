@@ -33,6 +33,8 @@
 #define btnSELECT           5
 #define MINDIFF             0.5
 #define MIL2MIN             60 * 1000
+#define PRINTTIMELCD        250
+#define PRINTTIMESER        1000
 ///////////////////////////////////////////////////////////////////////////////
 // states
 ///////////////////////////////////////////////////////////////////////////////
@@ -124,6 +126,9 @@ WaitTime          timerTempMeasure;
 WaitTime          timerPidCompute;
 WaitTime          timerSendHeatState;
 WaitTime          timerBrewTimer;
+WaitTime          lcdPrint;
+WaitTime          serPrint;
+WaitTime          pidRelaisTimer;
 StorageEEProm     store;
 ///////////////////////////////////////////////////////////////////////////////
 // setDefaultValues
@@ -133,7 +138,7 @@ void LoadValues()
   CONSOLELN("LoadValues");
   myRezept.UseDefault = false;
   store.load(0, sizeof(Rezept), (char*)&myRezept);
-  //if (  false == myRezept.UseDefault )
+  if (  false == myRezept.UseDefault )
   {
     // only go here after first installation
     memset((char*)&myRezept, 0, sizeof(Rezept));
@@ -723,9 +728,7 @@ void menu()
     }
     case MENU_BREW_RAST_START:
     {            
-      if ( isButtonPressed ( btnUP ) ){}
-      else if ( isButtonPressed ( btnDOWN ) ){}
-      else if ( isButtonPressed ( btnLEFT ) )
+      if ( isButtonPressed ( btnLEFT ) )
         nextState(MENU_START);
       break;      
     }
@@ -805,6 +808,9 @@ void setup()
   timerTempMeasure.setTime(myRezept.PidOWinterval);
   timerPidCompute.setTime(myRezept.PidWindowSize);
   timerSendHeatState.setTime(myRezept.PidWindowSize);
+  lcdPrint.setTime(PRINTTIMELCD);
+  serPrint.setTime(PRINTTIMESER);
+
   //set PID values
   setPID();
   // logo
@@ -834,7 +840,6 @@ void loop ()
     else
     {
       actTmp = readTmp;
-      CONSOLELN(actTmp);
     }         
   }
 
@@ -849,7 +854,8 @@ void loop ()
               {
                 myRezept.actRast++;
               }
-
+      CONSOLE(F("nxtSt:"));
+      CONSOLELN(myRezept.actRast);
       if ( MAXRAST == myRezept.actRast )
       {
         myRezept.actRast = 0;
@@ -905,95 +911,111 @@ void loop ()
         if ( isButtonPressed ( btnUP ) )
         {
           actBrewStat = BREW_STATE_NEXT_STATE;
+          buzzerActive = false;
+          BuzzerOnOff(buzzerActive);
+          myRezept.actRast++;
         }
       }
       else
       {
         actBrewStat = BREW_STATE_NEXT_STATE;
+        myRezept.actRast++;
       }
     }
 
     if ( myRezept.started ) 
     {
-      // LCD Show
-      lcd.print(F("S:"));
-      lcd.print(myRezept.actRast);
-      lcd.print(F(" H:"));
-      myRezept.heatState ? lcd.print(F("1")) : lcd.print(F("0"));
+      lcdPrint.start();
+      if ( lcdPrint.timeOver() )
+      {
+        lcdPrint.restart();
+        // LCD Show
+        lcd.print(F("S:"));
+        lcd.print(myRezept.actRast);
+        lcd.print(F(" H:"));
+        myRezept.heatState ? lcd.print(F("1")) : lcd.print(F("0"));
+        if ( BREW_STATE_HEAT_TIMER == actBrewStat )
+        {
+          lcd.print(F(" R:"));
+          unsigned long sT = timerBrewTimer.getDuration() / 1000;
+          if ( sT > 119 )
+           sT = sT / 60;
+          sprintf (printBuf, "%03u", (int)sT);      
+          lcd.print( printBuf );
+        }
+        else if ( BREW_STATE_HEAT_UP == actBrewStat )
+        {
+          lcd.print(F(" T:"));  
+          lcd.print( myRezept.rasten[myRezept.actRast].time );
+        }
+        else if ( BREW_STATE_TIMER_FIN == actBrewStat )
+        {
+          lcd.print(F(" W:"));
+        }
+        lcd.setCursor(0, 1);
+        lcd.print(F("Ti:"));
+        if ( DEVICE_DISCONNECTED_C == readTmp)
+          lcd.print(F("--"));
+        else
+          lcd.print(actTmp);
+        lcd.print(F(" Ts:"));
+        lcd.print(myRezept.rasten[myRezept.actRast].temp);
+      }
+    }
+    serPrint.start();
+    if ( serPrint.timeOver() )
+    {
+        serPrint.restart();
+      // Debug show
+      if ( buzzerActive )
+        CONSOLE(F("A:"));          
+      else
+        CONSOLE(F("B:"));
+      CONSOLE(actBrewStat);
+      CONSOLE(F(" S:"));
+      CONSOLE(myRezept.actRast);
+      CONSOLE(F(" H:"));
+      if ( myRezept.heatState ) 
+        CONSOLE(F("1")); 
+      else
+        CONSOLE(F("0"));
+      CONSOLE(F(" Ti:"));
+      CONSOLE(actTmp);
+      CONSOLE(F(" Ts:"));
+      CONSOLE(myRezept.rasten[myRezept.actRast].temp);
       if ( BREW_STATE_HEAT_TIMER == actBrewStat )
       {
-        lcd.print(F(" R:"));
-        unsigned long sT = timerBrewTimer.getDuration() / 1000;
-        if ( sT > 119 )
-         sT = sT / 60;
-        sprintf (printBuf, "%03u", (int)sT);      
-        lcd.print( printBuf );
+        CONSOLE(F(" R:"));
+        CONSOLELN( timerBrewTimer.getDuration() / 1000 );
       }
       else if ( BREW_STATE_HEAT_UP == actBrewStat )
       {
-        lcd.print(F(" T:"));  
-        lcd.print( myRezept.rasten[myRezept.actRast].time );
+        CONSOLE(F(" T:"));
+        CONSOLELN( myRezept.rasten[myRezept.actRast].time  );
       }
       else if ( BREW_STATE_TIMER_FIN == actBrewStat )
       {
-        lcd.print(F(" W:"));
+        CONSOLELN(F(" W:"));
       }
-      lcd.setCursor(0, 1);
-      lcd.print(F("iT:"));
-      if ( DEVICE_DISCONNECTED_C == readTmp)
-        lcd.print(F("--"));
-      else
-        lcd.print(actTmp);
-      lcd.print(F(" sT:"));
-      lcd.print(myRezept.rasten[myRezept.actRast].temp);
     }
-    // Debug show
-    if ( buzzerActive )
-      CONSOLE(F("A:"));          
-    else
-      CONSOLE(F("B:"));
-    CONSOLE(actBrewStat);
-    CONSOLE(F(" S:"));
-    CONSOLE(myRezept.actRast);
-    CONSOLE(F(" H:"));
-    if ( myRezept.heatState ) 
-      CONSOLE(F("1")); 
-    else
-      CONSOLE(F("0"));
-    CONSOLE(F(" iT:"));
-    CONSOLE(actTmp);
-    CONSOLE(F(" sT:"));
-    CONSOLE(myRezept.rasten[myRezept.actRast].temp);
-    if ( BREW_STATE_HEAT_TIMER == actBrewStat )
-    {
-      CONSOLE(F(" R:"));
-      CONSOLELN( timerBrewTimer.getDuration() / 1000 );
-    }
-    else if ( BREW_STATE_HEAT_UP == actBrewStat )
-    {
-      CONSOLE(F(" T:"));
-      CONSOLELN( myRezept.rasten[myRezept.actRast].time  );
-    }
-    else if ( BREW_STATE_TIMER_FIN == actBrewStat )
-    {
-      CONSOLELN(F(" W:"));
-    }
-    
     // PID compute 
     timerPidCompute.start();
     if ( timerPidCompute.timeOver() )
     {
-      myPID.Compute(); 
-      relaisOnStartTime = millis();
       timerPidCompute.restart();
+      myPID.Compute(); 
+      //relaisOnStartTime = millis();      
+      pidRelaisTimer.setTime(pidOutput);
+      pidRelaisTimer.start();
       CONSOLE(F("PIDcomp:"));
       CONSOLELN(pidOutput);
     }
   }  
 
   // wie lange geheizt werden soll
-  if( ( pidOutput > myRezept.PidMinWindow ) && 
-      ( pidOutput > millis() - relaisOnStartTime ) )
+  if(   false == pidRelaisTimer.timeOver() &&
+      ( pidOutput > myRezept.PidMinWindow ) )
+//      ( pidOutput > millis() - relaisOnStartTime ) )
   {
     changeHeatState(true);
   }
