@@ -17,21 +17,23 @@
 //
 // extra PCB in example is 20x33.7
 
-part = "all"; // [ top, bottom, button, buttons, all ]
+part = "buttons"; // [ top, bottom, button, buttons, all ]
 with_battery = 0; // [ 1:true, 0:false ] 
 extra_room = 0; //20.6; // size of extra room, if any, set to 0 otherwise
 
-have_usb_plug = 1; // [ 1:true, 0:false ] 
+have_usb_plug = 0; // [ 1:true, 0:false ] 
 have_power_plug = 1; // [ 1:true, 0:false ] 
 have_power_switch = 0; // [ 1:true, 0:false ] 
 have_up_key = 1; // [ 1:true, 0:false ] 
 have_down_key = 1; // [ 1:true, 0:false ] 
 have_left_key = 1; // [ 1:true, 0:false ] 
-have_right_key = 1; // [ 1:true, 0:false ] 
-have_select_key = 1; // [ 1:true, 0:false ] 
-have_reset_key = 1; // [ 1:true, 0:false ] 
-have_plugrow_upper = 1; // [ 1:true, 0:false ]
-have_plugrow_lower = 1; // [ 1:true, 0:false ]
+have_right_key = 0; // [ 1:true, 0:false ] 
+have_select_key = 0; // [ 1:true, 0:false ] 
+have_reset_key = 0; // [ 1:true, 0:false ] 
+have_plugrow_upper = 0; // [ 1:true, 0:false ]
+have_plugrow_lower = 0; // [ 1:true, 0:false ]
+mvBtnX = -3;
+mvBtnY = 1;
 
 /* [Hidden] */
 mil2mm = 0.0254;
@@ -67,8 +69,8 @@ button = [-(pcb[0]/2-25.8+6.0/2), -(pcb[1]/2-3.6-6.0/2), 5.3]; // coordinates, a
 button_dia = 4.6;
 button_dy1 = 4.7;
 button_dy2 = -2.0;
-button_dx1 = 15.2 - 6.0;
-button_dx2 = 23.2 - 6.0;
+button_dx1 = 15.2 - 6.0 - mvBtnX;
+button_dx2 = 23.2 - 6.0 - mvBtnX;
 trimpot = [9.5, 4.4]; // trimpot size, no margin
 trimpotdx = -(pcb[0]/2  - 3.9 - 9.5/2);
 trimpotdy = pcb[1]/2 - 0.9 - 4.4/2; 
@@ -171,12 +173,14 @@ module bottom() {
 		translate([-snap_len/2, pcb[1]/2+tol+wall, wall+pcb2floor+pcb[2]-frame_w/2]) rotate([0, 90, 0]) cylinder(r=snap_dia/2, h=snap_len, $fs=0.3);
 	}
     module power_usb(extra) { 
+        
        if (have_power_plug) 
 			translate([-pcb[0]/2, powerdy, wall+4.0+(pcb2floor-pcb2lower-pcb[2])-2*extra]) 
 				c_cube(2*(lowerpcbrx-tol), powersy+2*extra, pcb[2]+pcb2lower+2*extra-4.0);
         if (have_usb_plug) 
 			translate([-pcb[0]/2, usbdy, wall+4.0+(pcb2floor-pcb2lower-pcb[2])-2*extra]) 
 				c_cube(2*(lowerpcbrx-tol), usbsy+2*extra, pcb[2]+pcb2lower+2*extra-4.0);
+        
     }
 	module add() {
 		hull () for (x = [-1, 1]) for (y = [-1, 1])
@@ -318,12 +322,13 @@ module top() {
 				translate([windowdx, windowdy, pcb2roof-lcdframe[2]]) 
 					c_cube(lcdframe[0]+2*wall+2*tol, lcdframe[1]+2*wall+2*tol, lcdframe[2]);
               // buttons
-				 button_frame(0, button_dy1);
-              button_frame(0, button_dy2);
+			  button_frame(mvBtnX, button_dy1);
+              button_frame(mvBtnX, button_dy2);
               button_frame(button_dx2, 0); // reset
               button_frame(button_dx1, 0);
               button_frame(-button_dx2, 0);
               button_frame(-button_dx1, 0);
+                
 				// plug rows
 				if (have_plugrow_upper) 
 					plugrow_frame(plugrow1, 0, 7);
@@ -347,12 +352,14 @@ module top() {
 		translate([trimpotdx, trimpotdy, pcb2roof-lcdframe[2]-d]) 
 			c_cube(trimpot[0]+2.0, trimpot[1]+2.0, lcdframe[2]+tol);
 		// button hole
-       button_hole(0, button_dy1, have_up_key); // up
-       button_hole(0, button_dy2, have_down_key); // down
+       button_hole(mvBtnX, button_dy1, have_up_key); // up
+       button_hole(mvBtnX, button_dy2, have_down_key); // down
+        
        button_hole(button_dx2, 0, have_reset_key); // reset
        button_hole(button_dx1, 0, have_right_key); // right
        button_hole(-button_dx2, 0, have_select_key); // select
-       button_hole(-button_dx1, 0, have_left_key); // left
+       
+        button_hole(-button_dx1, 0, have_left_key); // left
 		// plug rows
 		if (have_plugrow_upper) 
 			plugrow_hole(plugrow1, 0, 7);
@@ -362,7 +369,7 @@ module top() {
 		}
 		// trimmer hole for screw
 		translate(trimmer) {
-			cylinder(r = trimmer_dia/2 + tol, h=pcb2roof+tol+wall+d, $fn=16);
+		//	cylinder(r = trimmer_dia/2 + tol, h=pcb2roof+tol+wall+d, $fn=16);
 		}
        // extra room 
        if (extra_room > 0) translate([pcb[0]/2+tol+wall+extra_room/2, 0, -d]) {
