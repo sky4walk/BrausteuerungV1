@@ -17,7 +17,7 @@
 //
 // extra PCB in example is 20x33.7
 
-part = "buttons"; // [ top, bottom, button, buttons, all ]
+part = "top"; // [ top, bottom, button, buttons, all ]
 with_battery = 0; // [ 1:true, 0:false ] 
 extra_room = 0; //20.6; // size of extra room, if any, set to 0 otherwise
 
