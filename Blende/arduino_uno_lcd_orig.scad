@@ -17,7 +17,7 @@
 //
 // extra PCB in example is 20x33.7
 
-part = "top"; // [ top, bottom, button, buttons, all ]
+part = "bottom"; // [ top, bottom, button, buttons, all ]
 with_battery = 0; // [ 1:true, 0:false ] 
 extra_room = 0; //20.6; // size of extra room, if any, set to 0 otherwise
 
@@ -34,6 +34,7 @@ have_plugrow_upper = 0; // [ 1:true, 0:false ]
 have_plugrow_lower = 0; // [ 1:true, 0:false ]
 mvBtnX = -3;
 mvBtnY = 1;
+addHight = 18;
 
 /* [Hidden] */
 mil2mm = 0.0254;
@@ -169,14 +170,14 @@ module switchguard() {
 
 module bottom() {
 	module snap2(ex) {
-		translate([pcb[0]/2+tol+wall+ex, -snap_len/2, wall+pcb2floor+pcb[2]-frame_w/2]) rotate([-90, 0, 0]) cylinder(r=snap_dia/2, h=snap_len, $fs=0.3);
-		translate([-snap_len/2, pcb[1]/2+tol+wall, wall+pcb2floor+pcb[2]-frame_w/2]) rotate([0, 90, 0]) cylinder(r=snap_dia/2, h=snap_len, $fs=0.3);
+		translate([pcb[0]/2+tol+wall+ex, -snap_len/2, wall+pcb2floor+pcb[2]-frame_w/2+addHight]) rotate([-90, 0, 0]) cylinder(r=snap_dia/2, h=snap_len, $fs=0.3);
+		translate([-snap_len/2, pcb[1]/2+tol+wall, wall+pcb2floor+pcb[2]-frame_w/2+addHight]) rotate([0, 90, 0]) cylinder(r=snap_dia/2, h=snap_len, $fs=0.3);
 	}
     module power_usb(extra) { 
         
        if (have_power_plug) 
 			translate([-pcb[0]/2, powerdy, wall+4.0+(pcb2floor-pcb2lower-pcb[2])-2*extra]) 
-				c_cube(2*(lowerpcbrx-tol), powersy+2*extra, pcb[2]+pcb2lower+2*extra-4.0);
+				c_cube(2*(lowerpcbrx-tol), powersy+2*extra, pcb[2]+pcb2lower+2*extra-4.0+addHight);
         if (have_usb_plug) 
 			translate([-pcb[0]/2, usbdy, wall+4.0+(pcb2floor-pcb2lower-pcb[2])-2*extra]) 
 				c_cube(2*(lowerpcbrx-tol), usbsy+2*extra, pcb[2]+pcb2lower+2*extra-4.0);
@@ -186,7 +187,7 @@ module bottom() {
 		hull () for (x = [-1, 1]) for (y = [-1, 1])
 			translate([x*(pcb[0]/2+tol+wall-corner_r) + (x>0 ? extra_y : 0), y*(pcb[1]/2+tol+wall-corner_r), corner_r]) {
 				sphere(r = corner_r, $fs=0.3);
-				cylinder(r = corner_r, h = wall+pcb2floor+pcb[2]-corner_r, $fs=0.3);
+				cylinder(r = corner_r, h = wall+pcb2floor+pcb[2]-corner_r+addHight, $fs=0.3);
 		}
 		snap2(with_battery ? batt[0]+wall+2*tol : 0);
         rotate([0, 0, 180]) snap2(0);
@@ -210,17 +211,20 @@ module bottom() {
 		difference () {
 			// pcb itself
 			translate([-(pcb[0]/2+tol), -(pcb[1]/2+tol), wall])
-				cube([2*tol+pcb[0], 2*tol+pcb[1], pcb2floor+pcb[2]+d]);
+				cube([2*tol+pcb[0], 2*tol+pcb[1], pcb2floor+pcb[2]+d+addHight]);
+            
 			// less pcb mount pedestals to lcd shield pcb]) 
+            
             difference ( ){
-                pedestal(lcdpcbdx-pcbmntdx, lcdpcbdy-pcbmntdy, pcb2floor, pcbmntdia);   
+                pedestal(lcdpcbdx-pcbmntdx, lcdpcbdy-pcbmntdy, pcb2floor+addHight, pcbmntdia);   
                 tswitch(tol);
             }    
-            pedestal(lcdpcbdx-pcbmntdx, lcdpcbdy+pcbmntdy, pcb2floor, pcbmntdia); 
+            pedestal(lcdpcbdx-pcbmntdx, lcdpcbdy+pcbmntdy, pcb2floor+addHight, pcbmntdia); 
             pedestal(pcbmnt2dx, pcbmnt2dy, pcb2floor-pcb2lower, pcbmnt2dia);
             pedestal(pcbmnt2adx, -pcbmnt2dy, pcb2floor-pcb2lower, pcbmnt2dia);
             pedestal(pcbmnt3dx, pcbmnt3dy, pcb2floor-pcb2lower, pcbmnt2dia);
             pedestal(pcbmnt3dx, pcbmnt3ady, pcb2floor-pcb2lower, pcbmnt2dia);
+            
             // walls for contacts
             difference () {
                 union () {
@@ -231,9 +235,12 @@ module bottom() {
                 }
                 translate([d, 0, 0]) power_usb(tol);
             }
+            
+            
 		}
 		// hole for countersunk pcb mounting screws, hidden (can be broken away)
 		//for (dx = [-pcbmntdx]) for (dy = [-pcbmntdy, pcbmntdy]) pedestal_hole(lcdpcbdx + dx, lcdpcbdy + dy, pcb2floor, pcbmntdia);
+        
         pedestal_hole(pcbmnt2dx, pcbmnt2dy, pcb2floor-pcb2lower, pcbmnt2dia);
         pedestal_hole(pcbmnt3dx, pcbmnt3dy, pcb2floor-pcb2lower, pcbmnt2dia);
         // hole for usb and power
@@ -259,6 +266,7 @@ module bottom() {
             c_cube(batt[0]+2*tol, pcb[1]+2*tol, batt[2]+2*tol);
             translate([0, pcb[1]/2 - 4.0/2, pcb2floor*.8]) rotate([0, -90, 0]) cylinder(r=4.0/2, h=batt[0]); // hole in internal wall
         }
+        
 	}
 	difference () {
 		add();
