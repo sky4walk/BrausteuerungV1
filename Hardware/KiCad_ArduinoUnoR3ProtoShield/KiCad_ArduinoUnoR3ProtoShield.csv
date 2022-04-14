@@ -1,0 +1,10 @@
+"ID";"Bezeichner";"Gehäuse";"Stückzahl";"Bezeichnung";"Anbieter und Referenz";
+1;"P1";"Socket_Strip_Arduino_1x08";1;"Power";;;
+2;"P2";"Socket_Strip_Arduino_1x06";1;"Analog";;;
+3;"P3";"Socket_Strip_Arduino_1x10";1;"Digital";;;
+4;"P4";"Socket_Strip_Arduino_1x08";1;"Digital";;;
+5;"P5,P6,P7,P8";"Arduino_1pin";4;"CONN_01X01";;;
+6;"Piezzo";"PIEZO-MCKPI-G1410";1;"PIEZO-MCKPI-G1410";;;
+7;"R4,7k";"R_Axial_DIN0207_L6.3mm_D2.5mm_P15.24mm_Horizontal";1;"R_Axial_DIN0207_L6.3mm_D2.5mm_P15.24mm_Horizontal";;;
+8;"TR433MHz";"RF_Transmitter_433_MHz";1;"RF_Transmitter_433_MHz";;;
+9;"Stereo Buchse 3,5mm";"Tayda_3.5mm_stereo_TRS_jack_A-853";1;"EAR";;;
