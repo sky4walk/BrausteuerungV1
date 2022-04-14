@@ -1,0 +1,6 @@
+"ID";"Bezeichner";"Gehäuse";"Stückzahl";"Bezeichnung";"Anbieter und Referenz";
+1;"Arduino UNO R3 Proto Shield";"Arduino_Uno_Shield";1;"Arduino_Uno_Shield";;;
+2;"R4,7K";"R_Axial_DIN0309_L9.0mm_D3.2mm_P20.32mm_Horizontal";1;"R_Axial_DIN0309_L9.0mm_D3.2mm_P20.32mm_Horizontal";;;
+3;"Piezzo";"PIEZO-MCKPI-G1410";1;"PIEZO-MCKPI-G1410";;;
+4;"Stereo3,5";"Tayda_3.5mm_stereo_TRS_jack_A-853";1;"EAR";;;
+5;"TR433MHz";"RF_Transmitter_433_MHz";1;"RF_Transmitter_433_MHz";;;
