@@ -19,9 +19,9 @@
 #define PIDWINDOWSIZE       (PIDOWINTERVAL * 6)
 #define PIDMINWINDOW        150 
 #define MAXRAST             16
-#define PINHEATER           13  //D13
-#define PINTMPDS18B20       12  //D12
-#define PINBUZZER           11  //D11
+#define PINTMPDS18B20       13  //D13
+#define PINBUZZER           12  //D12
+#define PINHEATER           11  //D11
 #define PINLCD              10
 #define PINKEY              0
 #define MAXBUTTONS          6
@@ -799,7 +799,7 @@ void setup()
   sensors.requestTemperatures();
   
   // start 433MHz modul switch
-  mySwitch.enableTransmit(PINHEATER); //D13
+  mySwitch.enableTransmit(PINHEATER); 
   mySwitch.setProtocol(myRezept.SwitchProtocol);
   mySwitch.setPulseLength(myRezept.SwitchPulseLength);
   mySwitch.setRepeatTransmit(myRezept.SwitchRepeat); 
