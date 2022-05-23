@@ -36,6 +36,11 @@
 #define MIL2MIN             60 * 1000
 #define PRINTTIMELCD        250
 #define PRINTTIMESER        1000
+#define PIDKPDELTA          100
+#define PIDKIDELTA          100
+#define PIDKDDELTA          100
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // states
 ///////////////////////////////////////////////////////////////////////////////
@@ -390,9 +395,9 @@ void menu()
         lcd.print(myRezept.pidKp, 2);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.pidKp += 10;
+          myRezept.pidKp += PIDKPDELTA;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.pidKp -= 10;
+          myRezept.pidKp -= PIDKPDELTA;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_PIDKD);
@@ -407,9 +412,9 @@ void menu()
         lcd.print(myRezept.pidKi, 2);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.pidKi += 10;
+          myRezept.pidKi += PIDKIDELTA;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.pidKi -= 10;
+          myRezept.pidKi -= PIDKIDELTA;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_PIDKI);
@@ -424,9 +429,9 @@ void menu()
         lcd.print(myRezept.pidKd, 2);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.pidKd += 10;
+          myRezept.pidKd += PIDKDDELTA;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.pidKd -= 10;
+          myRezept.pidKd -= PIDKDDELTA;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_PidOWinterval);
