@@ -34,7 +34,7 @@ have_plugrow_upper = 0; // [ 1:true, 0:false ]
 have_plugrow_lower = 0; // [ 1:true, 0:false ]
 mvBtnX = -3;
 mvBtnY = 1;
-addHight = 19;
+addHight = 14;
 
 /* [Hidden] */
 mil2mm = 0.0254;
