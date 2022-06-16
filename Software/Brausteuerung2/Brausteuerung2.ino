@@ -32,7 +32,7 @@
 #define btnDOWN             3
 #define btnLEFT             4
 #define btnSELECT           5
-#define MINDIFF             0.5
+#define MINDIFF             0.3
 #define MIL2MIN             60 * 1000
 #define PRINTTIMELCD        250
 #define PRINTTIMESER        1000
@@ -938,7 +938,7 @@ void loop ()
     // ziel temperatur ueberschritten
     if ( BREW_STATE_HEAT_UP == actBrewStat )
     {
-      if ( myRezept.rasten[myRezept.actRast].temp < actTmp )
+      if ( abs(myRezept.rasten[myRezept.actRast].temp - actTmp) < MINDIFF )
       {
         actBrewStat = BREW_STATE_HEAT_TIMER;
         timerBrewTimer.setTime( myRezept.rasten[myRezept.actRast].time * MIL2MIN );
