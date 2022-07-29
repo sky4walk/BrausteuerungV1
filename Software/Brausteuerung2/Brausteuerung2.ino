@@ -18,7 +18,7 @@
 #define TEMPRESOLUTION      12
 #define PIDOWINTERVAL       (1000 / (1 << (12 - TEMPRESOLUTION)))
 #define PIDWINDOWSIZE       (PIDOWINTERVAL * 6)
-#define PIDMINWINDOW        150
+#define PIDMINWINDOW        500
 #define MAXRAST             16
 #define PINTMPDS18B20       13  //D13
 #define PINBUZZER           12  //D12
@@ -119,6 +119,7 @@ int    subMenuState              = 0;
 int    actBrewStat               = 0;
 bool   heatStateChanged          = false;
 bool   buzzerActive              = false;
+bool   sensorConnected           = false;
 char   printBuf[16];
 ///////////////////////////////////////////////////////////////////////////////
 // classes
@@ -801,13 +802,24 @@ void changeHeatState(bool onOff)
   myRezept.heatState = onOff;
 }
 ///////////////////////////////////////////////////////////////////////////////
+// start sensor
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// sync lcd
+///////////////////////////////////////////////////////////////////////////////
+void lcdSync()
+{
+  lcd.begin(16, 2);  
+}
+///////////////////////////////////////////////////////////////////////////////
 // setup
 ///////////////////////////////////////////////////////////////////////////////
 void setup()
 {
   Serial.begin(115200);
-  lcd.begin(16, 2);
-
+  lcdSync();
+  
   // load and set values
   LoadValues();
 
@@ -860,13 +872,20 @@ void loop ()
     readTmp = sensors.getTempCByIndex(0);
     sensors.requestTemperatures();
 
+    if ( false == sensorConnected )
+    {
+      lcdSync();  
+    }
+    
     if ( DEVICE_DISCONNECTED_C == readTmp)
     {
       CONSOLELN("DISCONNECTED");
+      sensorConnected = false;
     }
     else
     {
       actTmp = readTmp;
+      sensorConnected = true;
     }
   }
 
