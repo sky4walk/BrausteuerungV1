@@ -442,14 +442,14 @@ void menu()
       }
     case MENU_SETUP_PidOWinterval:
       {
-        lcd.print(F("PidOWInt"));
+        lcd.print(F("PidOWInt[ms]"));
         lcd.setCursor(0, 1);
         lcd.print(myRezept.PidOWinterval);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.PidOWinterval++;
+          myRezept.PidOWinterval+=500;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.PidOWinterval--;
+          myRezept.PidOWinterval-=500;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_PidWindowSize);
@@ -459,14 +459,14 @@ void menu()
       }
     case MENU_SETUP_PidWindowSize:
       {
-        lcd.print(F("PidWSz"));
+        lcd.print(F("PidWSz[ms]"));
         lcd.setCursor(0, 1);
         lcd.print(myRezept.PidWindowSize);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.PidWindowSize++;
+          myRezept.PidWindowSize+=500;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.PidWindowSize--;
+          myRezept.PidWindowSize-=500;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_PidMinWindow);
@@ -476,14 +476,14 @@ void menu()
       }
     case MENU_SETUP_PidMinWindow:
       {
-        lcd.print(F("PidMinWnd"));
+        lcd.print(F("PidMinWnd[ms]"));
         lcd.setCursor(0, 1);
         lcd.print(myRezept.PidMinWindow);
 
         if ( isButtonPressed ( btnUP ) )
-          myRezept.PidMinWindow++;
+          myRezept.PidMinWindow+=500;
         else if ( isButtonPressed ( btnDOWN ) )
-          myRezept.PidMinWindow--;
+          myRezept.PidMinWindow-=500;
         else if ( isButtonPressed ( btnLEFT ) )
         {
           nextState(MENU_SETUP_SwitchProtocol);

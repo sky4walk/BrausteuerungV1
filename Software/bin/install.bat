@@ -1,4 +1,4 @@
-SET COMPORT=COM9
+SET COMPORT=COM4
 
 REM Arduino über USB Bus anschliessen
 REM %AVRPATH%\listComPorts.exe aufrufen um COM Port zu bestimmen
