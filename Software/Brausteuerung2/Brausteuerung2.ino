@@ -39,8 +39,7 @@
 #define PIDKPDELTA          100
 #define PIDKIDELTA          100
 #define PIDKDDELTA          100
-
-
+#define KEYDELAYTIME        250
 ///////////////////////////////////////////////////////////////////////////////
 // states
 ///////////////////////////////////////////////////////////////////////////////
@@ -137,6 +136,7 @@ WaitTime          timerBrewTimer;
 WaitTime          lcdPrint;
 WaitTime          serPrint;
 WaitTime          pidRelaisTimer;
+WaitTime          keyDelayTimer;
 StorageEEProm     store;
 ///////////////////////////////////////////////////////////////////////////////
 // setDefaultValues
@@ -228,22 +228,28 @@ int Keypad()
   int val = 0;
   int val_old = 0;
 
-  do
-  {
-    val_old = val;
-    x = analogRead(PINKEY);
-    if      (x <  60) val = btnRIGHT;
-    else if (x < 200) val = btnUP;
-    else if (x < 400) val = btnDOWN;
-    else if (x < 600) val = btnLEFT;
-    else if (x < 800) val = btnSELECT;
-    else              val = 0;
-    delay(10);
+  keyDelayTimer.start();
+  if ( keyDelayTimer.timeOver() ) {
+    do
+    {
+      val_old = val;
+      x = analogRead(PINKEY);
+      if      (x <  60) val = btnRIGHT;
+      else if (x < 200) val = btnUP;
+      else if (x < 400) val = btnDOWN;
+      else if (x < 600) val = btnLEFT;
+      else if (x < 800) val = btnSELECT;
+      else              val = 0;
+      delay(10);
+    }
+    while ( val != val_old );
   }
-  while ( val != val_old );
 
   setButton(val);
-  if ( 0 < val ) delay(200);
+
+  if ( 0 < val ) {
+    keyDelayTimer.restart();    
+  }
   return val;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -845,8 +851,9 @@ void setup()
 
   // configure timer
   timerTempMeasure.setTime(myRezept.PidOWinterval);
-  timerPidCompute.setTime(myRezept.PidWindowSize);
-  timerSendHeatState.setTime(myRezept.PidWindowSize);
+  timerPidCompute.setTime(myRezept.PidOWinterval);
+  timerSendHeatState.setTime(myRezept.PidOWinterval);
+  keyDelayTimer.setTime(KEYDELAYTIME);
   lcdPrint.setTime(PRINTTIMELCD);
   serPrint.setTime(PRINTTIMESER);
 
@@ -866,8 +873,7 @@ void loop ()
   menu();
   // temperatur meassure
   timerTempMeasure.start();
-  if ( timerTempMeasure.timeOver() )
-  {
+  if ( timerTempMeasure.timeOver() ) {
     timerTempMeasure.restart();
     readTmp = sensors.getTempCByIndex(0);
     sensors.requestTemperatures();
@@ -889,9 +895,26 @@ void loop ()
     }
   }
 
+  // wie lange geheizt werden soll
+  if ( MENU_BREW_RAST_OVR != actMenuState ) {
+    if (   false == pidRelaisTimer.timeOver()    &&
+           ( pidOutput > myRezept.PidMinWindow ) ) {
+      changeHeatState(true);
+    } else {
+      changeHeatState(false);
+    }
+  }
+  
+  // always send state
+  timerSendHeatState.start();
+  if ( timerSendHeatState.timeOver() || heatStateChanged ) {
+    timerSendHeatState.restart();
+    heatStateChanged = false;
+    Relais( myRezept.heatState );
+  }
+
   // rast override
-  if ( MENU_BREW_RAST_OVR == actMenuState)
-  {
+  if ( MENU_BREW_RAST_OVR == actMenuState) {
     if ( isButtonPressed ( btnUP ) )
     {
       changeHeatState(true);
@@ -929,15 +952,28 @@ void loop ()
       CONSOLE(actTmp);
     }
   }
+
   // wenn brausteuerung gestartet ist
-  if ( myRezept.started )
-  {
+  if ( myRezept.started ) {
+
+    // PID compute
+    timerPidCompute.start();
+    if ( timerPidCompute.timeOver() ) {
+      timerPidCompute.restart();
+      myPID.Compute();
+      //relaisOnStartTime = millis();
+      pidRelaisTimer.setTime(pidOutput);
+      pidRelaisTimer.start();
+      CONSOLE(F("PIDcomp:"));
+      CONSOLELN(pidOutput);
+    }
+
     // zustand suchen der aktiv ist
     if ( BREW_STATE_NEXT_STATE == actBrewStat )
     {
+      //naechste aktive Rast suchen
       while ( ( myRezept.actRast < MAXRAST ) &&
-              ( false == myRezept.rasten[myRezept.actRast].active ) )
-      {
+              ( false == myRezept.rasten[myRezept.actRast].active ) ) {
         myRezept.actRast++;
       }
       CONSOLE(F("nxtSt:"));
@@ -951,24 +987,24 @@ void loop ()
       else
       {
         actBrewStat = BREW_STATE_HEAT_UP;
+        resetPID();
       }
     }
 
     // ziel temperatur ueberschritten
-    if ( BREW_STATE_HEAT_UP == actBrewStat )
-    {
+    if ( BREW_STATE_HEAT_UP == actBrewStat ) {
       if ( abs(myRezept.rasten[myRezept.actRast].temp - actTmp) < MINDIFF )
       {
         actBrewStat = BREW_STATE_HEAT_TIMER;
         timerBrewTimer.setTime( myRezept.rasten[myRezept.actRast].time * MIL2MIN );
         timerBrewTimer.start();
+        resetPID();
         CONSOLELN(F("TmpReached"));
       }
     }
 
     // zeitmessung bis ende der rast
-    if ( BREW_STATE_HEAT_TIMER == actBrewStat )
-    {
+    if ( BREW_STATE_HEAT_TIMER == actBrewStat ) {
       if ( timerBrewTimer.timeOver() )
       {
         CONSOLELN(F("TimeReached"));
@@ -981,10 +1017,8 @@ void loop ()
       }
     }
 
-
     // ende der rast erreicht
-    if ( BREW_STATE_TIMER_FIN == actBrewStat )
-    {
+    if ( BREW_STATE_TIMER_FIN == actBrewStat ) {
       if ( buzzerActive )
       {
         if ( isButtonPressed ( btnDOWN ) )
@@ -1010,7 +1044,7 @@ void loop ()
       }
     }
 
-    if ( myRezept.started )
+    //if ( myRezept.started ) 
     {
       lcdPrint.start();
       if ( lcdPrint.timeOver() )
@@ -1050,8 +1084,7 @@ void loop ()
       }
     }
     serPrint.start();
-    if ( serPrint.timeOver() )
-    {
+    if ( serPrint.timeOver() ) {
       serPrint.restart();
       // Debug show
       if ( buzzerActive )
@@ -1085,41 +1118,7 @@ void loop ()
         CONSOLELN(F(" W:"));
       }
     }
-    // PID compute
-    timerPidCompute.start();
-    if ( timerPidCompute.timeOver() )
-    {
-      timerPidCompute.restart();
-      myPID.Compute();
-      //relaisOnStartTime = millis();
-      pidRelaisTimer.setTime(pidOutput);
-      pidRelaisTimer.start();
-      CONSOLE(F("PIDcomp:"));
-      CONSOLELN(pidOutput);
-    }
-  }
 
-  // wie lange geheizt werden soll
-  if ( MENU_BREW_RAST_OVR != actMenuState )
-  {
-    if (   false == pidRelaisTimer.timeOver()    &&
-           ( pidOutput > myRezept.PidMinWindow ) )
-    {
-      changeHeatState(true);
-    }
-    else
-    {
-      changeHeatState(false);
-    }
-  }
-  
-  // always send state
-  timerSendHeatState.start();
-  if ( timerSendHeatState.timeOver() || heatStateChanged )
-  {
-    timerSendHeatState.restart();
-    heatStateChanged = false;
-    Relais( myRezept.heatState );
   }
 }
 ///////////////////////////////////////////////////////////////////////////////
