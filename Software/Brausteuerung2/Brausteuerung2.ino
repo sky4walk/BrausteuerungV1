@@ -111,6 +111,9 @@ double actTmp                    = 25;
 double readTmp                   = 25;
 double sollTmp                   = 25;
 double minDiffC                  = 0.2;
+int keyPadMaxReading             = 0;
+int keyPadReading                = 0;
+int keyPadLastReading            = 0;
 unsigned long relaisOnStartTime  = 0;
 bool   btnPressed[MAXBUTTONS]    = {false, false, false, false, false, false};
 int    actMenuState              = 0;
@@ -218,38 +221,36 @@ bool isButtonPressed(int btnNr)
   {
     pressed = btnPressed[btnNr];
     btnPressed[btnNr] = false;
+    if ( true == pressed ) {
+      keyPadLastReading = keyPadMaxReading;
+    }
   }
   return pressed;
 }
 int Keypad()
 {
-  int x;
-  int y;
   int val = 0;
-  int val_old = 0;
+  
+  keyPadReading = analogRead(PINKEY);
+  
+  if ( abs(keyPadReading - keyPadLastReading) > 1 ) {
+    keyDelayTimer.restart();
+  }
 
-  keyDelayTimer.start();
   if ( keyDelayTimer.timeOver() ) {
-    do
-    {
-      val_old = val;
-      x = analogRead(PINKEY);
-      if      (x <  60) val = btnRIGHT;
-      else if (x < 200) val = btnUP;
-      else if (x < 400) val = btnDOWN;
-      else if (x < 600) val = btnLEFT;
-      else if (x < 800) val = btnSELECT;
-      else              val = 0;
-      delay(10);
-    }
-    while ( val != val_old );
+  
+    if      (keyPadReading <  60) val = btnRIGHT;
+    else if (keyPadReading < 200) val = btnUP;
+    else if (keyPadReading < 400) val = btnDOWN;
+    else if (keyPadReading < 600) val = btnLEFT;
+    else if (keyPadReading < 800) val = btnSELECT;
+    else                          val = 0;
+    setButton(val);
+    keyDelayTimer.restart();
   }
 
-  setButton(val);
+  keyPadLastReading = keyPadReading;
 
-  if ( 0 < val ) {
-    keyDelayTimer.restart();    
-  }
   return val;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -861,6 +862,9 @@ void setup()
   setPID();
   // logo
   printLogo();
+  //buttons
+  keyPadMaxReading = analogRead(PINKEY);
+  keyPadLastReading = keyPadMaxReading;
 }
 ///////////////////////////////////////////////////////////////////////////////
 // loop
