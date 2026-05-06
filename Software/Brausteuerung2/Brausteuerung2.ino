@@ -1,5 +1,14 @@
 // brausteuerung@AndreBetz.de
 // hier gilt die Bierlizenz
+//
+// Revision Brausteuerung3:
+//  - Keypad: Rausch-Schwelle 1->10, doppelten keyDelayTimer.restart() entfernt
+//            => Tastendruecke reagieren sofort statt erst beim Loslassen
+//  - PID-Konstruktor: Dummy-Werte statt uninitialisierten myRezept-Feldern
+//  - Heizfenster: pidRelaisTimer ersetzt durch millis() % PidWindowSize
+//            => kein Aussetzer bei 100% Aussteuerung
+//  - Menu KP/KI/KD: vertauschte State-Nummern und Labels korrigiert
+//  - lcdSync(): nur noch beim echten Reconnect-Uebergang aufgerufen
 ///////////////////////////////////////////////
 // includes
 ///////////////////////////////////////////////
@@ -131,14 +140,16 @@ OneWire           oneWire(PINTMPDS18B20);
 DallasTemperature sensors(&oneWire);
 DeviceAddress     tempDeviceAddress;
 RCSwitch          mySwitch = RCSwitch();
-PID myPID(&actTmp, &pidOutput, &sollTmp, myRezept.pidKp, myRezept.pidKi, myRezept.pidKd, DIRECT);
+// PID wird mit Dummy-Werten initialisiert; setPID() in setup() setzt die
+// echten Werte aus myRezept sobald LoadValues() gelaufen ist.
+PID myPID(&actTmp, &pidOutput, &sollTmp, 1.0, 0.0, 0.0, DIRECT);
 WaitTime          timerTempMeasure;
 WaitTime          timerPidCompute;
 WaitTime          timerSendHeatState;
 WaitTime          timerBrewTimer;
 WaitTime          lcdPrint;
 WaitTime          serPrint;
-WaitTime          pidRelaisTimer;
+// pidRelaisTimer entfernt: Heizsteuerung laeuft jetzt ueber millis() % PidWindowSize
 WaitTime          keyDelayTimer;
 StorageEEProm     store;
 ///////////////////////////////////////////////////////////////////////////////
@@ -229,27 +240,28 @@ bool isButtonPressed(int btnNr)
 }
 int Keypad()
 {
-  int val = 0;
-  
+  int val = btnNONE;
+
   keyPadReading = analogRead(PINKEY);
-  
-  if ( abs(keyPadReading - keyPadLastReading) > 1 ) {
+
+  // Schwelle auf 10 erhoehen: ADC-Rauschen ist typisch < 5 LSB,
+  // daher wuerde > 1 den Timer staendig neu starten und Tastendruecke blockieren.
+  if ( abs(keyPadReading - keyPadLastReading) > 10 ) {
     keyDelayTimer.restart();
+    keyPadLastReading = keyPadReading;
   }
 
   if ( keyDelayTimer.timeOver() ) {
-  
     if      (keyPadReading <  60) val = btnRIGHT;
     else if (keyPadReading < 200) val = btnUP;
     else if (keyPadReading < 400) val = btnDOWN;
     else if (keyPadReading < 600) val = btnLEFT;
     else if (keyPadReading < 800) val = btnSELECT;
-    else                          val = 0;
+    else                          val = btnNONE;
     setButton(val);
+    // Nur HIER restart – nicht zusaetzlich oben nach dem Rausch-Check.
     keyDelayTimer.restart();
   }
-
-  keyPadLastReading = keyPadReading;
 
   return val;
 }
@@ -408,12 +420,12 @@ void menu()
           myRezept.pidKp -= PIDKPDELTA;
         else if ( isButtonPressed ( btnLEFT ) )
         {
-          nextState(MENU_SETUP_PIDKD);
+          nextState(MENU_SETUP_PIDKI);
           CONSOLELN(myRezept.pidKp );
         }
         break;
       }
-    case MENU_SETUP_PIDKD:
+    case MENU_SETUP_PIDKI:
       {
         lcd.print(F("PidKI"));
         lcd.setCursor(0, 1);
@@ -425,12 +437,12 @@ void menu()
           myRezept.pidKi -= PIDKIDELTA;
         else if ( isButtonPressed ( btnLEFT ) )
         {
-          nextState(MENU_SETUP_PIDKI);
+          nextState(MENU_SETUP_PIDKD);
           CONSOLELN(myRezept.pidKi );
         }
         break;
       }
-    case MENU_SETUP_PIDKI:
+    case MENU_SETUP_PIDKD:
       {
         lcd.print(F("PidKD"));
         lcd.setCursor(0, 1);
@@ -882,11 +894,6 @@ void loop ()
     readTmp = sensors.getTempCByIndex(0);
     sensors.requestTemperatures();
 
-    if ( false == sensorConnected )
-    {
-      lcdSync();  
-    }
-    
     if ( DEVICE_DISCONNECTED_C == readTmp)
     {
       CONSOLELN("DISCONNECTED");
@@ -894,19 +901,24 @@ void loop ()
     }
     else
     {
+      // lcdSync nur beim Uebergang disconnected -> connected aufrufen,
+      // nicht bei jeder Messung (wuerde staendig flackern).
+      if ( false == sensorConnected )
+      {
+        lcdSync();
+      }
       actTmp = readTmp;
       sensorConnected = true;
     }
   }
 
-  // wie lange geheizt werden soll
+  // Heizsteuerung per rollendem Zeitfenster (Time-Proportioning).
+  // pidOutput (begrenzt auf [PidMinWindow .. PidWindowSize]) bestimmt,
+  // wie viel des aktuellen Fensters geheizt wird.
+  // Vorteil gegenueher pidRelaisTimer: kein Aussetzer wenn pidOutput == WindowSize.
   if ( MENU_BREW_RAST_OVR != actMenuState ) {
-    if (   false == pidRelaisTimer.timeOver()    &&
-           ( pidOutput > myRezept.PidMinWindow ) ) {
-      changeHeatState(true);
-    } else {
-      changeHeatState(false);
-    }
+    unsigned long windowPos = millis() % myRezept.PidWindowSize;
+    changeHeatState( pidOutput > (double)windowPos );
   }
   
   // always send state
@@ -965,9 +977,7 @@ void loop ()
     if ( timerPidCompute.timeOver() ) {
       timerPidCompute.restart();
       myPID.Compute();
-      //relaisOnStartTime = millis();
-      pidRelaisTimer.setTime(pidOutput);
-      pidRelaisTimer.start();
+      // pidOutput fliesst jetzt direkt ins rollende Zeitfenster ein (siehe oben).
       CONSOLE(F("PIDcomp:"));
       CONSOLELN(pidOutput);
     }
